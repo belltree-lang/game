@@ -42,18 +42,33 @@ export function mergePiece(board, piece, matrix) {
   }
 }
 
-export function sweepLines(board) {
-  const cols = board[0].length;
-  let cleared = 0;
+export function findFilledRows(board) {
+  const rows = [];
   for (let row = board.length - 1; row >= 0; row -= 1) {
     if (board[row].every(Boolean)) {
-      board.splice(row, 1);
-      board.unshift(Array(cols).fill(0));
-      cleared += 1;
-      row += 1;
+      rows.push(row);
     }
   }
-  return cleared;
+  return rows;
+}
+
+export function sweepLines(board, rowsToClear) {
+  const cols = board[0].length;
+  const targets = Array.isArray(rowsToClear)
+    ? [...new Set(rowsToClear)]
+    : findFilledRows(board);
+  if (targets.length === 0) {
+    return 0;
+  }
+  targets.sort((a, b) => b - a);
+  for (const row of targets) {
+    if (row < 0 || row >= board.length) continue;
+    board.splice(row, 1);
+  }
+  for (let i = 0; i < targets.length; i += 1) {
+    board.unshift(Array(cols).fill(0));
+  }
+  return targets.length;
 }
 
 const LINE_SCORE = { 1: 100, 2: 300, 3: 500, 4: 800 };

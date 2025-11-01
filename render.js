@@ -25,6 +25,25 @@ let boardBlockSize = BASE_BLOCK_SIZE;
 let lastScoreboardSnapshot = { score: null, totalLines: null, level: null };
 let lastStatusText = "";
 
+function lightenColor(hexColor, amount = 0.4) {
+  if (!hexColor || typeof hexColor !== "string") return hexColor;
+  const hex = hexColor.replace("#", "");
+  if (hex.length !== 6) return hexColor;
+  const num = Number.parseInt(hex, 16);
+  const r = (num >> 16) & 0xff;
+  const g = (num >> 8) & 0xff;
+  const b = num & 0xff;
+  const mix = (channel) =>
+    Math.round(channel + (255 - channel) * Math.min(Math.max(amount, 0), 1));
+  const next = (mix(r) << 16) | (mix(g) << 8) | mix(b);
+  return `#${next.toString(16).padStart(6, "0")}`;
+}
+
+function easeOutCubic(t) {
+  const clamped = Math.min(Math.max(t, 0), 1);
+  return 1 - (1 - clamped) ** 3;
+}
+
 export function syncCanvasSizes() {
   const boardMetrics = resizeCanvasToDisplaySize(
     boardCanvas,
@@ -38,46 +57,95 @@ export function syncCanvasSizes() {
 
 syncCanvasSizes();
 
-function drawCell(col, row, type) {
+function drawCell(col, row, type, options = {}) {
+  const { alpha = 1, scale = 1, ghost = false, pulse = 0 } = options;
   const blockSize = boardBlockSize || BASE_BLOCK_SIZE;
-  const x = col * blockSize;
-  const y = row * blockSize;
-  const color = COLORS[type] || "#e2e8f0";
-  boardCtx.fillStyle = color;
-  boardCtx.fillRect(x, y, blockSize, blockSize);
-  boardCtx.strokeStyle = "rgba(15, 23, 42, 0.65)";
-  const borderInset = Math.max(1, blockSize * 0.075);
-  const borderSize = Math.max(1, blockSize - borderInset * 2);
-  boardCtx.lineWidth = Math.max(1, blockSize * 0.08);
+  const size = blockSize * Math.max(Math.min(scale, 1.1), 0.25);
+  const offset = (blockSize - size) / 2;
+  const x = col * blockSize + offset;
+  const y = row * blockSize + offset;
+  const baseColor = COLORS[type] || "#e2e8f0";
+  const fillColor = ghost ? lightenColor(baseColor, 0.65) : baseColor;
+  const strokeColor = ghost
+    ? "rgba(255, 255, 255, 0.55)"
+    : "rgba(15, 23, 42, 0.65)";
+  const highlightColor = ghost
+    ? "rgba(255, 255, 255, 0.12)"
+    : "rgba(255, 255, 255, 0.25)";
+
+  boardCtx.save();
+  boardCtx.globalAlpha = Math.min(Math.max(alpha, 0), 1);
+  boardCtx.fillStyle = fillColor;
+  boardCtx.fillRect(x, y, size, size);
+  boardCtx.strokeStyle = strokeColor;
+  const borderInset = Math.max(1, size * 0.075);
+  const borderSize = Math.max(1, size - borderInset * 2);
+  boardCtx.lineWidth = Math.max(1, size * 0.08);
   boardCtx.strokeRect(
     x + borderInset,
     y + borderInset,
     borderSize,
     borderSize,
   );
-  const highlight = "rgba(255, 255, 255, 0.25)";
-  boardCtx.fillStyle = highlight;
-  const highlightInset = Math.max(2, blockSize * 0.12);
-  const highlightHeight = Math.max(2, blockSize * 0.28);
+  const highlightInset = Math.max(2, size * 0.12);
+  const highlightHeight = Math.max(2, size * 0.28);
+  boardCtx.fillStyle = highlightColor;
   boardCtx.fillRect(
     x + highlightInset,
     y + highlightInset,
-    Math.max(2, blockSize - highlightInset * 2.5),
+    Math.max(2, size - highlightInset * 2.5),
     highlightHeight,
   );
+  if (pulse > 0 && !ghost) {
+    const flashAlpha = Math.max(0, 0.45 - pulse * 0.45);
+    if (flashAlpha > 0) {
+      boardCtx.globalAlpha = flashAlpha;
+      boardCtx.fillStyle = "#f8fafc";
+      boardCtx.fillRect(x, y, size, size);
+    }
+  }
+  boardCtx.restore();
 }
 
-export function drawBoard(board, currentPiece, currentMatrix) {
+function drawPiece(piece, matrix, options = {}) {
+  if (!piece || !matrix) return;
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let col = 0; col < matrix[row].length; col += 1) {
+      if (!matrix[row][col]) continue;
+      const drawRow = piece.row + row;
+      const drawCol = piece.col + col;
+      if (drawRow >= 0) {
+        drawCell(drawCol, drawRow, piece.type, options);
+      }
+    }
+  }
+}
+
+export function drawBoard(
+  board,
+  currentPiece,
+  currentMatrix,
+  { ghostPiece = null, clearingRows = [], clearProgress = 0 } = {},
+) {
   const rows = board.length;
   const cols = board[0].length;
   boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
   boardCtx.fillStyle = "#0b1120";
   boardCtx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
+  const clearingSet = new Set(clearingRows);
+  const easedProgress = easeOutCubic(clearProgress);
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
       const cell = board[row][col];
       if (cell) {
-        drawCell(col, row, cell);
+        const isClearing = clearingSet.has(row);
+        const alpha = isClearing ? Math.max(0, 1 - easedProgress) : 1;
+        const scale = isClearing ? 1 - easedProgress * 0.2 : 1;
+        drawCell(col, row, cell, {
+          alpha,
+          scale,
+          pulse: isClearing ? easedProgress : 0,
+        });
       } else {
         boardCtx.strokeStyle = "rgba(148, 163, 184, 0.08)";
         const blockSize = boardBlockSize || BASE_BLOCK_SIZE;
@@ -92,17 +160,12 @@ export function drawBoard(board, currentPiece, currentMatrix) {
     }
   }
 
+  if (ghostPiece && currentMatrix) {
+    drawPiece(ghostPiece, currentMatrix, { alpha: 0.5, ghost: true });
+  }
+
   if (currentPiece && currentMatrix) {
-    for (let row = 0; row < currentMatrix.length; row += 1) {
-      for (let col = 0; col < currentMatrix[row].length; col += 1) {
-        if (!currentMatrix[row][col]) continue;
-        const drawRow = currentPiece.row + row;
-        const drawCol = currentPiece.col + col;
-        if (drawRow >= 0) {
-          drawCell(drawCol, drawRow, currentPiece.type);
-        }
-      }
-    }
+    drawPiece(currentPiece, currentMatrix);
   }
 }
 

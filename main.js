@@ -6,6 +6,7 @@ import {
   sweepLines,
   addScore as calculateScore,
   calculateDropInterval,
+  findFilledRows,
 } from "./board.js";
 import {
   drawBoard,
@@ -17,6 +18,7 @@ import {
 
 const COLS = 10;
 const ROWS = 20;
+const LINE_CLEAR_ANIMATION_DURATION = 260;
 const NORMAL_KICKS = [
   { col: 0, row: 0 },
   { col: 1, row: 0 },
@@ -53,6 +55,7 @@ let lastTime = 0;
 let isRunning = false;
 let isGameOver = false;
 let isBoardFocused = false;
+let clearingState = null;
 
 const FOCUS_PROMPT_TEXT = "キャンバスにフォーカスして操作できます";
 
@@ -118,6 +121,7 @@ function movePiece(deltaCol) {
 }
 
 function softDrop() {
+  if (clearingState) return;
   if (!currentPiece) return;
   const matrix = currentMatrix();
   if (!matrix) return;
@@ -131,6 +135,7 @@ function softDrop() {
 }
 
 function hardDrop() {
+  if (clearingState) return;
   if (!currentPiece) return;
   const matrix = currentMatrix();
   if (!matrix) return;
@@ -147,33 +152,48 @@ function hardDrop() {
 
 function lockPiece() {
   const matrix = currentMatrix();
+  if (!currentPiece || !matrix) return;
   mergePiece(board, currentPiece, matrix);
-  const cleared = sweepLines(board);
-  addScore(cleared);
-  updateScoreboard(score, totalLines, level);
   dropCounter = 0;
-  spawnPiece();
-}
-
-function addScore(linesCleared) {
-  const nextState = calculateScore(
-    { score, totalLines, level, dropInterval },
-    linesCleared,
-  );
-  ({ score, totalLines, level, dropInterval } = nextState);
+  const filledRows = findFilledRows(board);
+  if (filledRows.length > 0) {
+    clearingState = {
+      rows: filledRows,
+      elapsed: 0,
+    };
+    currentPiece = null;
+  } else {
+    updateScoreboard(score, totalLines, level);
+    spawnPiece();
+  }
 }
 
 function update(time = 0) {
   const delta = time - lastTime;
   lastTime = time;
   if (isRunning && !isGameOver) {
-    dropCounter += delta;
-    if (dropCounter >= dropInterval) {
-      softDrop();
-      dropCounter = 0;
+    if (clearingState) {
+      clearingState.elapsed += delta;
+      if (clearingState.elapsed >= LINE_CLEAR_ANIMATION_DURATION) {
+        finalizeLineClear();
+      }
+    } else {
+      dropCounter += delta;
+      if (dropCounter >= dropInterval) {
+        softDrop();
+        dropCounter = 0;
+      }
     }
   }
-  drawBoard(board, currentPiece, currentMatrix());
+  const matrix = currentMatrix();
+  const ghostPiece = getGhostPiece(matrix);
+  drawBoard(board, currentPiece, matrix, {
+    ghostPiece,
+    clearingRows: clearingState?.rows ?? [],
+    clearProgress: clearingState
+      ? Math.min(1, clearingState.elapsed / LINE_CLEAR_ANIMATION_DURATION)
+      : 0,
+  });
   requestAnimationFrame(update);
 }
 
@@ -187,6 +207,7 @@ function restartGame() {
   level = 1;
   dropInterval = calculateDropInterval(1);
   dropCounter = 0;
+  clearingState = null;
   isRunning = true;
   isGameOver = false;
   updateScoreboard(score, totalLines, level);
@@ -292,3 +313,29 @@ showFocusPrompt();
 
 update();
 restartGame();
+
+function addScore(linesCleared) {
+  const nextState = calculateScore(
+    { score, totalLines, level, dropInterval },
+    linesCleared,
+  );
+  ({ score, totalLines, level, dropInterval } = nextState);
+}
+
+function finalizeLineClear() {
+  if (!clearingState) return;
+  const cleared = sweepLines(board, clearingState.rows);
+  addScore(cleared);
+  updateScoreboard(score, totalLines, level);
+  clearingState = null;
+  spawnPiece();
+}
+
+function getGhostPiece(matrix = currentMatrix()) {
+  if (!currentPiece || !matrix || clearingState) return null;
+  const ghost = { ...currentPiece };
+  while (canPlace(board, matrix, ghost.row + 1, ghost.col)) {
+    ghost.row += 1;
+  }
+  return ghost;
+}
