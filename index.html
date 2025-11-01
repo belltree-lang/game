@@ -13,34 +13,51 @@
       <p class="subtitle">HTML + CSS + JavaScript だけで遊べるシンプルなテトリス</p>
     </header>
 
-    <main class="game-container" aria-live="polite">
+    <main class="game-container">
       <section class="hud" aria-label="ゲーム情報">
         <div class="hud-panel">
           <h2>スコア</h2>
-          <p id="score" class="hud-value">0</p>
+          <p id="score" class="hud-value" aria-live="polite">0</p>
         </div>
         <div class="hud-panel">
           <h2>レベル</h2>
-          <p id="level" class="hud-value">1</p>
+          <p id="level" class="hud-value" aria-live="polite">1</p>
         </div>
         <div class="hud-panel">
           <h2>消去ライン</h2>
-          <p id="lines" class="hud-value">0</p>
+          <p id="lines" class="hud-value" aria-live="polite">0</p>
         </div>
         <div class="hud-panel hud-panel--next">
           <h2>Next</h2>
           <canvas id="next" width="120" height="120" aria-label="次のテトリミノ表示"></canvas>
         </div>
-        <p id="status" class="status" data-status>READY</p>
+        <p id="status" class="status" data-status role="status" aria-live="polite">READY</p>
+        <p id="sr-updates" class="sr-only" aria-live="polite"></p>
         <button id="restart" type="button" class="primary-button" aria-label="ゲームをリスタート">リスタート (R)</button>
       </section>
 
       <section class="playfield" aria-label="プレイフィールド">
-        <canvas id="board" width="320" height="640"></canvas>
+        <canvas
+          id="board"
+          width="320"
+          height="640"
+          tabindex="0"
+          aria-label="ゲームプレイ用のフィールド。クリックまたはフォーカスしてキーボード操作を開始"
+        ></canvas>
       </section>
 
       <section class="help" aria-label="操作説明">
-        <h2>操作</h2>
+        <div class="help-header">
+          <h2 id="controls-heading">操作</h2>
+          <button
+            id="focus-board"
+            class="secondary-button"
+            type="button"
+            aria-describedby="controls-heading"
+          >
+            プレイフィールドにフォーカス
+          </button>
+        </div>
         <dl>
           <div>
             <dt>← / →</dt>
@@ -63,6 +80,7 @@
             <dd>リスタート</dd>
           </div>
         </dl>
+        <p class="help-hint">キャンバスをクリック / タップするとキーボード操作が可能になります。</p>
       </section>
     </main>
 

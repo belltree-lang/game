@@ -7,7 +7,13 @@ import {
   addScore as calculateScore,
   calculateDropInterval,
 } from "./board.js";
-import { drawBoard, updateNextPreview, updateScoreboard, updateStatus } from "./render.js";
+import {
+  drawBoard,
+  syncCanvasSizes,
+  updateNextPreview,
+  updateScoreboard,
+  updateStatus,
+} from "./render.js";
 
 const COLS = 10;
 const ROWS = 20;
@@ -31,6 +37,8 @@ const I_KICKS = [
 ];
 
 const restartButton = document.querySelector("#restart");
+const boardCanvas = document.querySelector("#board");
+const focusBoardButton = document.querySelector("#focus-board");
 
 let board = createMatrix(ROWS, COLS);
 let bag = new Bag();
@@ -44,6 +52,9 @@ let dropCounter = 0;
 let lastTime = 0;
 let isRunning = false;
 let isGameOver = false;
+let isBoardFocused = false;
+
+const FOCUS_PROMPT_TEXT = "キャンバスにフォーカスして操作できます";
 
 function resetBoard() {
   board = createMatrix(ROWS, COLS);
@@ -179,9 +190,9 @@ function restartGame() {
   isRunning = true;
   isGameOver = false;
   updateScoreboard(score, totalLines, level);
-  updateStatus("PLAY");
   updateNextPreview(nextPieceType);
   spawnPiece();
+  showFocusPrompt();
 }
 
 function gameOver() {
@@ -190,13 +201,19 @@ function gameOver() {
   updateStatus("GAME OVER", "gameover");
 }
 
+function showFocusPrompt() {
+  if (!isGameOver) {
+    updateStatus(FOCUS_PROMPT_TEXT, "paused");
+  }
+}
+
 function handleKeyDown(event) {
   if (event.code === "KeyR") {
     event.preventDefault();
     restartGame();
     return;
   }
-  if (!isRunning || isGameOver) {
+  if (!isRunning || isGameOver || !isBoardFocused) {
     return;
   }
   switch (event.code) {
@@ -231,7 +248,47 @@ restartButton.addEventListener("click", () => {
   restartButton.blur();
 });
 
-window.addEventListener("keydown", handleKeyDown);
+if (boardCanvas) {
+  boardCanvas.addEventListener("pointerdown", () => {
+    boardCanvas.focus();
+  });
+  boardCanvas.addEventListener("focus", () => {
+    isBoardFocused = true;
+    if (isRunning && !isGameOver) {
+      updateStatus("PLAY");
+    }
+  });
+  boardCanvas.addEventListener("blur", () => {
+    isBoardFocused = false;
+    if (isRunning && !isGameOver) {
+      showFocusPrompt();
+    }
+  });
+  boardCanvas.addEventListener("keydown", handleKeyDown);
+}
+
+if (focusBoardButton && boardCanvas) {
+  focusBoardButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    boardCanvas.focus();
+  });
+}
+
+window.addEventListener("keydown", (event) => {
+  if (event.code === "KeyR") {
+    handleKeyDown(event);
+  }
+});
+
+function handleResize() {
+  syncCanvasSizes();
+  updateNextPreview(nextPieceType);
+}
+
+window.addEventListener("resize", handleResize);
+
+syncCanvasSizes();
+showFocusPrompt();
 
 update();
 restartGame();
