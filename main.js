@@ -1,11 +1,16 @@
 import { Bag, SHAPES } from "./pieces.js";
-import { createMatrix, canPlace, mergePiece, sweepLines } from "./board.js";
+import {
+  createMatrix,
+  canPlace,
+  mergePiece,
+  sweepLines,
+  addScore as calculateScore,
+  calculateDropInterval,
+} from "./board.js";
 import { drawBoard, updateNextPreview, updateScoreboard, updateStatus } from "./render.js";
 
 const COLS = 10;
 const ROWS = 20;
-const LINE_SCORE = { 1: 100, 2: 300, 3: 500, 4: 800 };
-
 const NORMAL_KICKS = [
   { col: 0, row: 0 },
   { col: 1, row: 0 },
@@ -34,7 +39,7 @@ let nextPieceType = null;
 let score = 0;
 let totalLines = 0;
 let level = 1;
-let dropInterval = 1000;
+let dropInterval = calculateDropInterval(1);
 let dropCounter = 0;
 let lastTime = 0;
 let isRunning = false;
@@ -139,20 +144,12 @@ function lockPiece() {
   spawnPiece();
 }
 
-function updateLevel() {
-  const newLevel = Math.floor(totalLines / 10) + 1;
-  if (newLevel !== level) {
-    level = newLevel;
-    dropInterval = Math.max(120, 1000 - (level - 1) * 100);
-  }
-}
-
 function addScore(linesCleared) {
-  if (!linesCleared) return;
-  const base = LINE_SCORE[linesCleared] || 0;
-  score += base * level;
-  totalLines += linesCleared;
-  updateLevel();
+  const nextState = calculateScore(
+    { score, totalLines, level, dropInterval },
+    linesCleared,
+  );
+  ({ score, totalLines, level, dropInterval } = nextState);
 }
 
 function update(time = 0) {
@@ -177,7 +174,7 @@ function restartGame() {
   score = 0;
   totalLines = 0;
   level = 1;
-  dropInterval = 1000;
+  dropInterval = calculateDropInterval(1);
   dropCounter = 0;
   isRunning = true;
   isGameOver = false;

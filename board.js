@@ -55,3 +55,41 @@ export function sweepLines(board) {
   }
   return cleared;
 }
+
+const LINE_SCORE = { 1: 100, 2: 300, 3: 500, 4: 800 };
+const BASE_DROP_INTERVAL = 1000;
+const DROP_STEP = 100;
+const MIN_DROP_INTERVAL = 120;
+
+export function calculateDropInterval(level) {
+  return Math.max(
+    MIN_DROP_INTERVAL,
+    BASE_DROP_INTERVAL - (Math.max(level, 1) - 1) * DROP_STEP,
+  );
+}
+
+export function addScore(state, linesCleared) {
+  const {
+    score = 0,
+    totalLines = 0,
+    level = 1,
+    dropInterval = calculateDropInterval(level),
+  } = state;
+
+  if (!linesCleared) {
+    return { score, totalLines, level, dropInterval };
+  }
+
+  const base = LINE_SCORE[linesCleared] || 0;
+  const newScore = score + base * level;
+  const updatedLines = totalLines + linesCleared;
+  const newLevel = Math.floor(updatedLines / 10) + 1;
+  const newDropInterval = calculateDropInterval(newLevel);
+
+  return {
+    score: newScore,
+    totalLines: updatedLines,
+    level: newLevel,
+    dropInterval: newDropInterval,
+  };
+}
