@@ -15,6 +15,7 @@ const HONORS = [
 ];
 
 const PLAYER_ORDER = ["south", "east", "west", "north"];
+const TURN_ORDER = ["north", "east", "south", "west"];
 const PLAYER_NAMES = {
   south: "南家",
   east: "東家",
@@ -37,8 +38,10 @@ const state = {
     north: [],
   },
   doraIndicator: null,
-  dealerIndex: 0,
-  currentTurn: 0,
+  turnIndex: 0,
+  phase: "idle",
+  isRoundActive: false,
+  logMessages: [],
 };
 
 function createTile({ suit, value, copy }) {
@@ -102,9 +105,11 @@ function resetState() {
     west: [],
     north: [],
   };
-  state.currentTurn = 0;
-  state.dealerIndex = 0;
   state.doraIndicator = null;
+  state.turnIndex = 0;
+  state.phase = "idle";
+  state.isRoundActive = false;
+  state.logMessages = [];
 }
 
 function drawTile(playerKey) {
@@ -133,16 +138,12 @@ function dealInitialHands() {
   PLAYER_ORDER.forEach((player) => {
     state.hands[player] = [];
   });
-  for (let round = 0; round < 3; round += 1) {
+  for (let i = 0; i < 13; i += 1) {
     PLAYER_ORDER.forEach((player) => {
-      for (let i = 0; i < 4; i += 1) {
-        drawTile(player);
-      }
+      drawTile(player);
     });
   }
-  PLAYER_ORDER.forEach((player) => drawTile(player));
-  const dealerKey = PLAYER_ORDER[state.dealerIndex];
-  drawTile(dealerKey);
+  drawTile("north");
   // Dora indicator = last tile in wall (just peek)
   state.doraIndicator = state.wall[state.wall.length - 1] || null;
 }
@@ -150,10 +151,10 @@ function dealInitialHands() {
 function discardTile(playerKey, tileId) {
   const hand = state.hands[playerKey];
   const tileIndex = hand.findIndex((tile) => tile.id === tileId);
-  if (tileIndex === -1) return;
+  if (tileIndex === -1) return null;
   const [tile] = hand.splice(tileIndex, 1);
   state.rivers[playerKey].push(tile);
-  render();
+  return tile;
 }
 
 function updateWallCount() {
@@ -169,6 +170,28 @@ function updateDoraIndicator() {
   doraNode.textContent = state.doraIndicator ? state.doraIndicator.text : "未設定";
 }
 
+function appendLog(message) {
+  state.logMessages.push(message);
+  if (state.logMessages.length > 100) {
+    state.logMessages.shift();
+  }
+  renderLog();
+}
+
+function renderLog() {
+  const logList = document.querySelector("#log");
+  if (!logList) {
+    return;
+  }
+  logList.innerHTML = "";
+  state.logMessages.forEach((entry) => {
+    const item = document.createElement("li");
+    item.textContent = entry;
+    logList.appendChild(item);
+  });
+  logList.scrollTop = logList.scrollHeight;
+}
+
 function renderHands() {
   document.querySelectorAll(".player").forEach((playerEl) => {
     const playerKey = playerEl.dataset.player;
@@ -182,17 +205,20 @@ function renderHands() {
     riverContainer.innerHTML = "";
 
     state.hands[playerKey].forEach((tile) => {
-      const button = document.createElement("button");
-      button.className = "tile";
-      button.type = "button";
-      button.textContent = tile.text;
-      button.dataset.tileId = tile.id;
-      if (playerKey === "north") {
-        button.addEventListener("click", () => {
-          discardTile(playerKey, tile.id);
+      const isPlayer = playerKey === "north";
+      const elementTag = isPlayer ? "button" : "div";
+      const tileElement = document.createElement(elementTag);
+      tileElement.className = "tile";
+      tileElement.textContent = tile.text;
+      tileElement.dataset.tileId = tile.id;
+      if (isPlayer) {
+        tileElement.type = "button";
+        tileElement.disabled = !state.isRoundActive || state.phase !== "discard";
+        tileElement.addEventListener("click", () => {
+          handlePlayerDiscard(tile.id);
         });
       }
-      handContainer.appendChild(button);
+      handContainer.appendChild(tileElement);
     });
 
     state.rivers[playerKey].forEach((tile) => {
@@ -208,25 +234,116 @@ function render() {
   updateWallCount();
   updateDoraIndicator();
   renderHands();
+  renderLog();
+  updateControls();
 }
 
 function startRound() {
   resetState();
   dealInitialHands();
+  state.isRoundActive = true;
+  state.phase = "discard";
+  state.turnIndex = TURN_ORDER.indexOf("north");
+  appendLog("新しい局を開始しました。北家（あなた）が先手です。");
   render();
-  state.currentTurn = 0;
-  const drawButton = document.querySelector("#draw-tile");
-  if (drawButton) {
-    drawButton.disabled = false;
-  }
 }
 
 function handleDraw() {
-  const tile = drawTile("north");
-  if (!tile) {
+  if (!state.isRoundActive || state.phase !== "draw") {
     return;
   }
+  const tile = drawTile("north");
+  if (!tile) {
+    endRound("山が尽きました。流局です。");
+    return;
+  }
+  appendLog(`あなた: ${tile.text} をツモ`);
+  state.phase = "discard";
+  state.turnIndex = TURN_ORDER.indexOf("north");
   render();
+}
+
+function handlePlayerDiscard(tileId) {
+  if (!state.isRoundActive || state.phase !== "discard") {
+    return;
+  }
+  const discarded = discardTile("north", tileId);
+  if (!discarded) {
+    return;
+  }
+  appendLog(`あなた: ${discarded.text} を捨てました`);
+  state.phase = "cpu";
+  state.turnIndex = getNextTurnIndex(state.turnIndex);
+  render();
+  processCpuTurns();
+}
+
+function processCpuTurns() {
+  if (!state.isRoundActive) {
+    return;
+  }
+
+  while (state.isRoundActive && TURN_ORDER[state.turnIndex] !== "north") {
+    const playerKey = TURN_ORDER[state.turnIndex];
+    const drawnTile = drawTile(playerKey);
+    if (!drawnTile) {
+      endRound("山が尽きました。流局です。");
+      return;
+    }
+    const hand = state.hands[playerKey];
+    if (hand.length === 0) {
+      endRound(`${PLAYER_NAMES[playerKey]}の手牌が空になりました。`);
+      return;
+    }
+    const discardIndex = Math.floor(Math.random() * hand.length);
+    const tileToDiscard = hand[discardIndex];
+    const discarded = discardTile(playerKey, tileToDiscard.id);
+    if (discarded) {
+      appendLog(`${PLAYER_NAMES[playerKey]}: ${discarded.text} を捨てました`);
+    }
+    render();
+    state.turnIndex = getNextTurnIndex(state.turnIndex);
+  }
+
+  if (!state.isRoundActive) {
+    return;
+  }
+
+  if (state.wall.length === 0) {
+    endRound("山が尽きました。流局です。");
+    return;
+  }
+
+  state.phase = "draw";
+  state.turnIndex = TURN_ORDER.indexOf("north");
+  render();
+}
+
+function endRound(message) {
+  if (!state.isRoundActive) {
+    return;
+  }
+  state.isRoundActive = false;
+  state.phase = "finished";
+  if (message) {
+    appendLog(message);
+  }
+  render();
+}
+
+function getNextTurnIndex(index) {
+  return (index + 1) % TURN_ORDER.length;
+}
+
+function updateControls() {
+  const drawButton = document.querySelector("#draw-tile");
+  if (drawButton) {
+    drawButton.disabled = !state.isRoundActive || state.phase !== "draw";
+  }
+  const startButton = document.querySelector("#start-round");
+  if (startButton) {
+    startButton.textContent = state.isRoundActive ? "局をリセット" : "配牌スタート";
+  }
 }
 
 function bindEvents() {
@@ -247,6 +364,7 @@ function bindEvents() {
 function init() {
   bindEvents();
   render();
+  startRound();
 }
 
 document.addEventListener("DOMContentLoaded", init);
