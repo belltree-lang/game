@@ -1,6 +1,11 @@
 import { COLORS, SHAPES } from "./pieces.js";
+import { resizeCanvasToDisplaySize } from "./utils.js";
 
-const BLOCK_SIZE = 32;
+const BASE_BLOCK_SIZE = 32;
+const BASE_BOARD_WIDTH = 320;
+const BASE_BOARD_HEIGHT = 640;
+const BASE_NEXT_CANVAS_SIZE = 120;
+const BASE_NEXT_CELL = 24;
 
 const boardCanvas = document.querySelector("#board");
 const boardCtx = boardCanvas.getContext("2d");
@@ -14,19 +19,52 @@ const scoreEl = document.querySelector("#score");
 const linesEl = document.querySelector("#lines");
 const levelEl = document.querySelector("#level");
 const statusEl = document.querySelector("#status");
+const srUpdatesEl = document.querySelector("#sr-updates");
+
+let boardBlockSize = BASE_BLOCK_SIZE;
+let lastScoreboardSnapshot = { score: null, totalLines: null, level: null };
+let lastStatusText = "";
+
+export function syncCanvasSizes() {
+  const boardMetrics = resizeCanvasToDisplaySize(
+    boardCanvas,
+    BASE_BOARD_WIDTH,
+    BASE_BOARD_HEIGHT,
+  );
+  boardBlockSize = BASE_BLOCK_SIZE * (boardMetrics.scale || 1);
+
+  resizeCanvasToDisplaySize(nextCanvas, BASE_NEXT_CANVAS_SIZE, BASE_NEXT_CANVAS_SIZE);
+}
+
+syncCanvasSizes();
 
 function drawCell(col, row, type) {
-  const x = col * BLOCK_SIZE;
-  const y = row * BLOCK_SIZE;
+  const blockSize = boardBlockSize || BASE_BLOCK_SIZE;
+  const x = col * blockSize;
+  const y = row * blockSize;
   const color = COLORS[type] || "#e2e8f0";
   boardCtx.fillStyle = color;
-  boardCtx.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
+  boardCtx.fillRect(x, y, blockSize, blockSize);
   boardCtx.strokeStyle = "rgba(15, 23, 42, 0.65)";
-  boardCtx.lineWidth = 2;
-  boardCtx.strokeRect(x + 1, y + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+  const borderInset = Math.max(1, blockSize * 0.075);
+  const borderSize = Math.max(1, blockSize - borderInset * 2);
+  boardCtx.lineWidth = Math.max(1, blockSize * 0.08);
+  boardCtx.strokeRect(
+    x + borderInset,
+    y + borderInset,
+    borderSize,
+    borderSize,
+  );
   const highlight = "rgba(255, 255, 255, 0.25)";
   boardCtx.fillStyle = highlight;
-  boardCtx.fillRect(x + 2, y + 2, BLOCK_SIZE - 6, (BLOCK_SIZE - 6) / 3);
+  const highlightInset = Math.max(2, blockSize * 0.12);
+  const highlightHeight = Math.max(2, blockSize * 0.28);
+  boardCtx.fillRect(
+    x + highlightInset,
+    y + highlightInset,
+    Math.max(2, blockSize - highlightInset * 2.5),
+    highlightHeight,
+  );
 }
 
 export function drawBoard(board, currentPiece, currentMatrix) {
@@ -42,7 +80,14 @@ export function drawBoard(board, currentPiece, currentMatrix) {
         drawCell(col, row, cell);
       } else {
         boardCtx.strokeStyle = "rgba(148, 163, 184, 0.08)";
-        boardCtx.strokeRect(col * BLOCK_SIZE, row * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        const blockSize = boardBlockSize || BASE_BLOCK_SIZE;
+        boardCtx.lineWidth = Math.max(1, blockSize * 0.05);
+        boardCtx.strokeRect(
+          col * blockSize,
+          row * blockSize,
+          blockSize,
+          blockSize,
+        );
       }
     }
   }
@@ -65,7 +110,8 @@ export function updateNextPreview(nextPieceType) {
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   if (!nextPieceType) return;
   const matrix = SHAPES[nextPieceType][0];
-  const cellSize = 24;
+  const widthScale = nextCanvas.width / BASE_NEXT_CANVAS_SIZE;
+  const cellSize = Math.max(16, BASE_NEXT_CELL * widthScale);
   const width = matrix[0].length * cellSize;
   const height = matrix.length * cellSize;
   const offsetX = (nextCanvas.width - width) / 2;
@@ -87,9 +133,31 @@ export function updateScoreboard(score, totalLines, level) {
   scoreEl.textContent = score.toString();
   linesEl.textContent = totalLines.toString();
   levelEl.textContent = level.toString();
+
+  if (srUpdatesEl) {
+    const changes = [];
+    if (score !== lastScoreboardSnapshot.score) {
+      changes.push(`スコア ${score}`);
+    }
+    if (totalLines !== lastScoreboardSnapshot.totalLines) {
+      changes.push(`消去ライン ${totalLines}`);
+    }
+    if (level !== lastScoreboardSnapshot.level) {
+      changes.push(`レベル ${level}`);
+    }
+
+    if (changes.length > 0) {
+      srUpdatesEl.textContent = `${changes.join("、")}。`;
+      lastScoreboardSnapshot = { score, totalLines, level };
+    }
+  }
 }
 
 export function updateStatus(text, state = "running") {
+  if (text === lastStatusText && statusEl.dataset.state === state) {
+    return;
+  }
   statusEl.textContent = text;
   statusEl.dataset.state = state;
+  lastStatusText = text;
 }
