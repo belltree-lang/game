@@ -49,6 +49,16 @@ on HTML, CSS and vanilla JavaScript—no build step or external libraries.
 
 行消去数に応じてスコアが加算され、10ラインごとにレベルが上がって落下速度が速くなります。
 
+### テストの実行
+
+ブラウザ版テトリスのコアロジックは [Vitest](https://vitest.dev/) で単体テストを用意しています。
+ローカル環境では以下の手順で依存関係をインストールし、テストを実行できます。
+
+```bash
+npm install
+npm test
+```
+
 ## Module overview
 
 - `mahjong.tiles` – definitions for tiles and helpers to build/shuffle the wall.
