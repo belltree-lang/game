@@ -25,18 +25,29 @@ The script exits once a player wins or the wall is exhausted.
 
 ## Browser prototype
 
-An experimental browser front-end that mirrors the Python engine is available in
-`index.html`. Open the file directly in a browser to try the lightweight UI. It
-currently supports the following features:
+The repository also ships with a standalone HTML5版テトリス. Open `index.html`
+in a modern browser to start playing instantly. The implementation relies solely
+on HTML, CSS and vanilla JavaScript—no build step or external libraries.
 
-- 136-tile wall with Fisher–Yates shuffle
-- Automatic distribution of starting hands (dealer receives 14 tiles)
-- Dora indicator display and wall counter
-- Manual draws and discards for the player at the bottom of the table (click a
-  tile to discard)
+### 主な特徴
 
-Further features such as calls (チー・ポン・カン), win detection and scoring are
-planned but not yet implemented.
+- 10×20のプレイフィールドと7種類のテトリミノをサポート
+- 7バッグ方式でテトリミノをランダム生成
+- ソフトドロップ／ハードドロップ、回転、左右移動に対応
+- ライン消去でスコア加算、一定行数ごとにレベルアップ＆落下加速
+- 次のミノ表示、スコア・ライン・レベル表示、ゲームオーバー判定
+
+### 操作方法
+
+| キー | 動作 |
+| --- | --- |
+| ← / → | 左右に1マス移動 |
+| ↑ | 右回転 |
+| ↓ | ソフトドロップ |
+| スペース | ハードドロップ |
+| R | ゲームをリスタート |
+
+行消去数に応じてスコアが加算され、10ラインごとにレベルが上がって落下速度が速くなります。
 
 ## Module overview
 

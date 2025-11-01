@@ -1,370 +1,527 @@
-const NUMBER_SUITS = [
-  { key: "man", label: "萬子", values: ["1", "2", "3", "4", "5", "6", "7", "8", "9"] },
-  { key: "pin", label: "筒子", values: ["1", "2", "3", "4", "5", "6", "7", "8", "9"] },
-  { key: "sou", label: "索子", values: ["1", "2", "3", "4", "5", "6", "7", "8", "9"] },
-];
+const COLS = 10;
+const ROWS = 20;
+const BLOCK_SIZE = 32;
+const LINE_SCORE = { 1: 100, 2: 300, 3: 500, 4: 800 };
 
-const HONORS = [
-  { key: "east", label: "東" },
-  { key: "south", label: "南" },
-  { key: "west", label: "西" },
-  { key: "north", label: "北" },
-  { key: "white", label: "白" },
-  { key: "green", label: "發" },
-  { key: "red", label: "中" },
-];
-
-const PLAYER_ORDER = ["south", "east", "west", "north"];
-const TURN_ORDER = ["north", "east", "south", "west"];
-const PLAYER_NAMES = {
-  south: "南家",
-  east: "東家",
-  west: "西家",
-  north: "北家",
+const SHAPES = {
+  I: [
+    [
+      [0, 0, 0, 0],
+      [1, 1, 1, 1],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ],
+    [
+      [0, 0, 1, 0],
+      [0, 0, 1, 0],
+      [0, 0, 1, 0],
+      [0, 0, 1, 0],
+    ],
+  ],
+  O: [
+    [
+      [0, 1, 1, 0],
+      [0, 1, 1, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ],
+  ],
+  T: [
+    [
+      [0, 1, 0],
+      [1, 1, 1],
+      [0, 0, 0],
+    ],
+    [
+      [0, 1, 0],
+      [0, 1, 1],
+      [0, 1, 0],
+    ],
+    [
+      [0, 0, 0],
+      [1, 1, 1],
+      [0, 1, 0],
+    ],
+    [
+      [0, 1, 0],
+      [1, 1, 0],
+      [0, 1, 0],
+    ],
+  ],
+  S: [
+    [
+      [0, 1, 1],
+      [1, 1, 0],
+      [0, 0, 0],
+    ],
+    [
+      [0, 1, 0],
+      [0, 1, 1],
+      [0, 0, 1],
+    ],
+  ],
+  Z: [
+    [
+      [1, 1, 0],
+      [0, 1, 1],
+      [0, 0, 0],
+    ],
+    [
+      [0, 0, 1],
+      [0, 1, 1],
+      [0, 1, 0],
+    ],
+  ],
+  J: [
+    [
+      [1, 0, 0],
+      [1, 1, 1],
+      [0, 0, 0],
+    ],
+    [
+      [0, 1, 1],
+      [0, 1, 0],
+      [0, 1, 0],
+    ],
+    [
+      [0, 0, 0],
+      [1, 1, 1],
+      [0, 0, 1],
+    ],
+    [
+      [0, 1, 0],
+      [0, 1, 0],
+      [1, 1, 0],
+    ],
+  ],
+  L: [
+    [
+      [0, 0, 1],
+      [1, 1, 1],
+      [0, 0, 0],
+    ],
+    [
+      [0, 1, 0],
+      [0, 1, 0],
+      [0, 1, 1],
+    ],
+    [
+      [0, 0, 0],
+      [1, 1, 1],
+      [1, 0, 0],
+    ],
+    [
+      [1, 1, 0],
+      [0, 1, 0],
+      [0, 1, 0],
+    ],
+  ],
 };
 
-const state = {
-  wall: [],
-  hands: {
-    south: [],
-    east: [],
-    west: [],
-    north: [],
-  },
-  rivers: {
-    south: [],
-    east: [],
-    west: [],
-    north: [],
-  },
-  doraIndicator: null,
-  turnIndex: 0,
-  phase: "idle",
-  isRoundActive: false,
-  logMessages: [],
+const COLORS = {
+  I: "#38bdf8",
+  O: "#facc15",
+  T: "#a855f7",
+  S: "#22c55e",
+  Z: "#f97316",
+  J: "#3b82f6",
+  L: "#f59e0b",
 };
 
-function createTile({ suit, value, copy }) {
-  const isHonor = suit === "honor";
-  const identifier = `${suit}-${value}-${copy}`;
-  return {
-    id: identifier,
-    suit,
-    value,
-    isHonor,
-    text: formatTileText(suit, value),
-  };
-}
+const NORMAL_KICKS = [
+  { col: 0, row: 0 },
+  { col: 1, row: 0 },
+  { col: -1, row: 0 },
+  { col: 0, row: -1 },
+  { col: 2, row: 0 },
+  { col: -2, row: 0 },
+];
 
-function formatTileText(suit, value) {
-  if (suit === "honor") {
-    const honor = HONORS.find((item) => item.key === value);
-    return honor ? honor.label : value;
+const I_KICKS = [
+  { col: 0, row: 0 },
+  { col: 1, row: 0 },
+  { col: -1, row: 0 },
+  { col: 0, row: -1 },
+  { col: 0, row: 1 },
+  { col: 2, row: 0 },
+  { col: -2, row: 0 },
+];
+
+class Bag {
+  constructor() {
+    this.queue = [];
+    this.refill();
   }
-  const suitLabel = NUMBER_SUITS.find((item) => item.key === suit);
-  const suffix = suitLabel ? suitLabel.label.charAt(0) : suit[0];
-  return `${value}${suffix}`;
+
+  refill() {
+    const types = Object.keys(SHAPES);
+    for (let i = types.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [types[i], types[j]] = [types[j], types[i]];
+    }
+    this.queue.push(...types);
+  }
+
+  draw() {
+    if (this.queue.length === 0) {
+      this.refill();
+    }
+    return this.queue.pop();
+  }
 }
 
-function buildWall() {
-  const tiles = [];
-  NUMBER_SUITS.forEach((suit) => {
-    suit.values.forEach((value) => {
-      for (let copy = 0; copy < 4; copy += 1) {
-        tiles.push(createTile({ suit: suit.key, value, copy }));
+const boardCanvas = document.querySelector("#board");
+const boardCtx = boardCanvas.getContext("2d");
+boardCtx.imageSmoothingEnabled = false;
+
+const nextCanvas = document.querySelector("#next");
+const nextCtx = nextCanvas.getContext("2d");
+nextCtx.imageSmoothingEnabled = false;
+
+const scoreEl = document.querySelector("#score");
+const linesEl = document.querySelector("#lines");
+const levelEl = document.querySelector("#level");
+const statusEl = document.querySelector("#status");
+const restartButton = document.querySelector("#restart");
+
+let board = createMatrix(ROWS, COLS);
+let bag = new Bag();
+let currentPiece = null;
+let nextPieceType = null;
+let score = 0;
+let totalLines = 0;
+let level = 1;
+let dropInterval = 1000;
+let dropCounter = 0;
+let lastTime = 0;
+let isRunning = false;
+let isGameOver = false;
+
+function createMatrix(rows, cols) {
+  return Array.from({ length: rows }, () => Array(cols).fill(0));
+}
+
+function resetBoard() {
+  board = createMatrix(ROWS, COLS);
+}
+
+function currentMatrix() {
+  if (!currentPiece) return null;
+  const rotations = SHAPES[currentPiece.type];
+  return rotations[currentPiece.rotationIndex];
+}
+
+function canPlace(matrix, offsetRow, offsetCol) {
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let col = 0; col < matrix[row].length; col += 1) {
+      if (!matrix[row][col]) continue;
+      const targetRow = offsetRow + row;
+      const targetCol = offsetCol + col;
+      if (targetCol < 0 || targetCol >= COLS) {
+        return false;
       }
-    });
-  });
-  HONORS.forEach((honor) => {
-    for (let copy = 0; copy < 4; copy += 1) {
-      tiles.push(createTile({ suit: "honor", value: honor.key, copy }));
-    }
-  });
-  return tiles;
-}
-
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-}
-
-function resetState() {
-  state.wall = shuffle(buildWall());
-  state.hands = {
-    south: [],
-    east: [],
-    west: [],
-    north: [],
-  };
-  state.rivers = {
-    south: [],
-    east: [],
-    west: [],
-    north: [],
-  };
-  state.doraIndicator = null;
-  state.turnIndex = 0;
-  state.phase = "idle";
-  state.isRoundActive = false;
-  state.logMessages = [];
-}
-
-function drawTile(playerKey) {
-  if (state.wall.length === 0) {
-    return null;
-  }
-  const tile = state.wall.pop();
-  state.hands[playerKey].push(tile);
-  sortHand(playerKey);
-  updateWallCount();
-  return tile;
-}
-
-function sortHand(playerKey) {
-  state.hands[playerKey].sort((a, b) => {
-    if (a.suit === b.suit) {
-      return a.value.localeCompare(b.value);
-    }
-    if (a.suit === "honor") return 1;
-    if (b.suit === "honor") return -1;
-    return a.suit.localeCompare(b.suit);
-  });
-}
-
-function dealInitialHands() {
-  PLAYER_ORDER.forEach((player) => {
-    state.hands[player] = [];
-  });
-  for (let i = 0; i < 13; i += 1) {
-    PLAYER_ORDER.forEach((player) => {
-      drawTile(player);
-    });
-  }
-  drawTile("north");
-  // Dora indicator = last tile in wall (just peek)
-  state.doraIndicator = state.wall[state.wall.length - 1] || null;
-}
-
-function discardTile(playerKey, tileId) {
-  const hand = state.hands[playerKey];
-  const tileIndex = hand.findIndex((tile) => tile.id === tileId);
-  if (tileIndex === -1) return null;
-  const [tile] = hand.splice(tileIndex, 1);
-  state.rivers[playerKey].push(tile);
-  return tile;
-}
-
-function updateWallCount() {
-  const wallCount = document.querySelector("#wall-count");
-  if (wallCount) {
-    wallCount.textContent = state.wall.length.toString();
-  }
-}
-
-function updateDoraIndicator() {
-  const doraNode = document.querySelector("#dora-indicator");
-  if (!doraNode) return;
-  doraNode.textContent = state.doraIndicator ? state.doraIndicator.text : "未設定";
-}
-
-function appendLog(message) {
-  state.logMessages.push(message);
-  if (state.logMessages.length > 100) {
-    state.logMessages.shift();
-  }
-  renderLog();
-}
-
-function renderLog() {
-  const logList = document.querySelector("#log");
-  if (!logList) {
-    return;
-  }
-  logList.innerHTML = "";
-  state.logMessages.forEach((entry) => {
-    const item = document.createElement("li");
-    item.textContent = entry;
-    logList.appendChild(item);
-  });
-  logList.scrollTop = logList.scrollHeight;
-}
-
-function renderHands() {
-  document.querySelectorAll(".player").forEach((playerEl) => {
-    const playerKey = playerEl.dataset.player;
-    const handContainer = playerEl.querySelector('[data-role="hand"]');
-    const riverContainer = playerEl.querySelector('[data-role="river"]');
-    if (!playerKey || !handContainer || !riverContainer) {
-      return;
-    }
-
-    handContainer.innerHTML = "";
-    riverContainer.innerHTML = "";
-
-    state.hands[playerKey].forEach((tile) => {
-      const isPlayer = playerKey === "north";
-      const elementTag = isPlayer ? "button" : "div";
-      const tileElement = document.createElement(elementTag);
-      tileElement.className = "tile";
-      tileElement.textContent = tile.text;
-      tileElement.dataset.tileId = tile.id;
-      if (isPlayer) {
-        tileElement.type = "button";
-        tileElement.disabled = !state.isRoundActive || state.phase !== "discard";
-        tileElement.addEventListener("click", () => {
-          handlePlayerDiscard(tile.id);
-        });
+      if (targetRow >= ROWS) {
+        return false;
       }
-      handContainer.appendChild(tileElement);
-    });
-
-    state.rivers[playerKey].forEach((tile) => {
-      const span = document.createElement("span");
-      span.className = "tile";
-      span.textContent = tile.text;
-      riverContainer.appendChild(span);
-    });
-  });
+      if (targetRow >= 0 && board[targetRow][targetCol]) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
-function render() {
-  updateWallCount();
-  updateDoraIndicator();
-  renderHands();
-  renderLog();
-  updateControls();
+function mergePiece() {
+  const matrix = currentMatrix();
+  if (!matrix || !currentPiece) return;
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let col = 0; col < matrix[row].length; col += 1) {
+      if (!matrix[row][col]) continue;
+      const targetRow = currentPiece.row + row;
+      const targetCol = currentPiece.col + col;
+      if (targetRow < 0 || targetRow >= ROWS || targetCol < 0 || targetCol >= COLS) {
+        continue;
+      }
+      board[targetRow][targetCol] = currentPiece.type;
+    }
+  }
 }
 
-function startRound() {
-  resetState();
-  dealInitialHands();
-  state.isRoundActive = true;
-  state.phase = "discard";
-  state.turnIndex = TURN_ORDER.indexOf("north");
-  appendLog("新しい局を開始しました。北家（あなた）が先手です。");
-  render();
+function sweepLines() {
+  let cleared = 0;
+  for (let row = ROWS - 1; row >= 0; row -= 1) {
+    if (board[row].every(Boolean)) {
+      board.splice(row, 1);
+      board.unshift(Array(COLS).fill(0));
+      cleared += 1;
+      row += 1;
+    }
+  }
+  return cleared;
 }
 
-function handleDraw() {
-  if (!state.isRoundActive || state.phase !== "draw") {
-    return;
+function updateLevel() {
+  const newLevel = Math.floor(totalLines / 10) + 1;
+  if (newLevel !== level) {
+    level = newLevel;
+    dropInterval = Math.max(120, 1000 - (level - 1) * 100);
   }
-  const tile = drawTile("north");
-  if (!tile) {
-    endRound("山が尽きました。流局です。");
-    return;
-  }
-  appendLog(`あなた: ${tile.text} をツモ`);
-  state.phase = "discard";
-  state.turnIndex = TURN_ORDER.indexOf("north");
-  render();
 }
 
-function handlePlayerDiscard(tileId) {
-  if (!state.isRoundActive || state.phase !== "discard") {
-    return;
-  }
-  const discarded = discardTile("north", tileId);
-  if (!discarded) {
-    return;
-  }
-  appendLog(`あなた: ${discarded.text} を捨てました`);
-  state.phase = "cpu";
-  state.turnIndex = getNextTurnIndex(state.turnIndex);
-  render();
-  processCpuTurns();
+function addScore(linesCleared) {
+  if (!linesCleared) return;
+  const base = LINE_SCORE[linesCleared] || 0;
+  score += base * level;
+  totalLines += linesCleared;
+  updateLevel();
 }
 
-function processCpuTurns() {
-  if (!state.isRoundActive) {
-    return;
-  }
+function updateScoreboard() {
+  scoreEl.textContent = score.toString();
+  linesEl.textContent = totalLines.toString();
+  levelEl.textContent = level.toString();
+}
 
-  while (state.isRoundActive && TURN_ORDER[state.turnIndex] !== "north") {
-    const playerKey = TURN_ORDER[state.turnIndex];
-    const drawnTile = drawTile(playerKey);
-    if (!drawnTile) {
-      endRound("山が尽きました。流局です。");
+function updateStatus(text, state = "running") {
+  statusEl.textContent = text;
+  statusEl.dataset.state = state;
+}
+
+function spawnPiece() {
+  const type = nextPieceType ?? bag.draw();
+  const initialRow = type === "I" ? -1 : -2;
+  const piece = {
+    type,
+    rotationIndex: 0,
+    row: initialRow,
+    col: Math.floor(COLS / 2) - 2,
+  };
+  const matrix = SHAPES[type][0];
+  if (!canPlace(matrix, piece.row, piece.col)) {
+    piece.row = 0;
+    if (!canPlace(matrix, piece.row, piece.col)) {
+      currentPiece = null;
+      gameOver();
       return;
     }
-    const hand = state.hands[playerKey];
-    if (hand.length === 0) {
-      endRound(`${PLAYER_NAMES[playerKey]}の手牌が空になりました。`);
+  }
+  currentPiece = piece;
+  nextPieceType = bag.draw();
+  updateNextPreview();
+}
+
+function rotatePiece() {
+  if (!currentPiece) return;
+  const rotations = SHAPES[currentPiece.type];
+  const nextIndex = (currentPiece.rotationIndex + 1) % rotations.length;
+  const nextMatrix = rotations[nextIndex];
+  const kicks = currentPiece.type === "I" ? I_KICKS : NORMAL_KICKS;
+  for (const kick of kicks) {
+    const nextRow = currentPiece.row + kick.row;
+    const nextCol = currentPiece.col + kick.col;
+    if (canPlace(nextMatrix, nextRow, nextCol)) {
+      currentPiece.rotationIndex = nextIndex;
+      currentPiece.row = nextRow;
+      currentPiece.col = nextCol;
       return;
     }
-    const discardIndex = Math.floor(Math.random() * hand.length);
-    const tileToDiscard = hand[discardIndex];
-    const discarded = discardTile(playerKey, tileToDiscard.id);
-    if (discarded) {
-      appendLog(`${PLAYER_NAMES[playerKey]}: ${discarded.text} を捨てました`);
+  }
+}
+
+function movePiece(deltaCol) {
+  if (!currentPiece) return;
+  const matrix = currentMatrix();
+  if (!matrix) return;
+  const nextCol = currentPiece.col + deltaCol;
+  if (canPlace(matrix, currentPiece.row, nextCol)) {
+    currentPiece.col = nextCol;
+  }
+}
+
+function softDrop() {
+  if (!currentPiece) return;
+  const matrix = currentMatrix();
+  if (!matrix) return;
+  const nextRow = currentPiece.row + 1;
+  if (canPlace(matrix, nextRow, currentPiece.col)) {
+    currentPiece.row = nextRow;
+    dropCounter = 0;
+  } else {
+    lockPiece();
+  }
+}
+
+function hardDrop() {
+  if (!currentPiece) return;
+  const matrix = currentMatrix();
+  if (!matrix) return;
+  let distance = 0;
+  while (canPlace(matrix, currentPiece.row + 1, currentPiece.col)) {
+    currentPiece.row += 1;
+    distance += 1;
+  }
+  if (distance > 0) {
+    score += distance * 2;
+  }
+  lockPiece();
+}
+
+function lockPiece() {
+  mergePiece();
+  const cleared = sweepLines();
+  addScore(cleared);
+  updateScoreboard();
+  dropCounter = 0;
+  spawnPiece();
+}
+
+function drawBoard() {
+  boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+  boardCtx.fillStyle = "#0b1120";
+  boardCtx.fillRect(0, 0, boardCanvas.width, boardCanvas.height);
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      const cell = board[row][col];
+      if (cell) {
+        drawCell(col, row, cell);
+      } else {
+        boardCtx.strokeStyle = "rgba(148, 163, 184, 0.08)";
+        boardCtx.strokeRect(col * BLOCK_SIZE, row * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+      }
     }
-    render();
-    state.turnIndex = getNextTurnIndex(state.turnIndex);
   }
+  if (currentPiece) {
+    const matrix = currentMatrix();
+    if (matrix) {
+      for (let row = 0; row < matrix.length; row += 1) {
+        for (let col = 0; col < matrix[row].length; col += 1) {
+          if (!matrix[row][col]) continue;
+          const drawRow = currentPiece.row + row;
+          const drawCol = currentPiece.col + col;
+          if (drawRow >= 0) {
+            drawCell(drawCol, drawRow, currentPiece.type);
+          }
+        }
+      }
+    }
+  }
+}
 
-  if (!state.isRoundActive) {
+function drawCell(col, row, type) {
+  const x = col * BLOCK_SIZE;
+  const y = row * BLOCK_SIZE;
+  const color = COLORS[type] || "#e2e8f0";
+  boardCtx.fillStyle = color;
+  boardCtx.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
+  boardCtx.strokeStyle = "rgba(15, 23, 42, 0.65)";
+  boardCtx.lineWidth = 2;
+  boardCtx.strokeRect(x + 1, y + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+  const highlight = "rgba(255, 255, 255, 0.25)";
+  boardCtx.fillStyle = highlight;
+  boardCtx.fillRect(x + 2, y + 2, BLOCK_SIZE - 6, (BLOCK_SIZE - 6) / 3);
+}
+
+function updateNextPreview() {
+  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+  if (!nextPieceType) return;
+  const matrix = SHAPES[nextPieceType][0];
+  const cellSize = 24;
+  const width = matrix[0].length * cellSize;
+  const height = matrix.length * cellSize;
+  const offsetX = (nextCanvas.width - width) / 2;
+  const offsetY = (nextCanvas.height - height) / 2;
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let col = 0; col < matrix[row].length; col += 1) {
+      if (!matrix[row][col]) continue;
+      const x = offsetX + col * cellSize;
+      const y = offsetY + row * cellSize;
+      nextCtx.fillStyle = COLORS[nextPieceType];
+      nextCtx.fillRect(x, y, cellSize - 2, cellSize - 2);
+      nextCtx.strokeStyle = "rgba(15, 23, 42, 0.6)";
+      nextCtx.strokeRect(x + 1, y + 1, cellSize - 4, cellSize - 4);
+    }
+  }
+}
+
+function update(time = 0) {
+  const delta = time - lastTime;
+  lastTime = time;
+  if (isRunning && !isGameOver) {
+    dropCounter += delta;
+    if (dropCounter >= dropInterval) {
+      softDrop();
+      dropCounter = 0;
+    }
+  }
+  drawBoard();
+  requestAnimationFrame(update);
+}
+
+function restartGame() {
+  resetBoard();
+  bag = new Bag();
+  currentPiece = null;
+  nextPieceType = bag.draw();
+  score = 0;
+  totalLines = 0;
+  level = 1;
+  dropInterval = 1000;
+  dropCounter = 0;
+  isRunning = true;
+  isGameOver = false;
+  updateScoreboard();
+  updateStatus("PLAY");
+  spawnPiece();
+}
+
+function gameOver() {
+  isRunning = false;
+  isGameOver = true;
+  updateStatus("GAME OVER", "gameover");
+}
+
+function handleKeyDown(event) {
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    restartGame();
     return;
   }
-
-  if (state.wall.length === 0) {
-    endRound("山が尽きました。流局です。");
+  if (!isRunning || isGameOver) {
     return;
   }
-
-  state.phase = "draw";
-  state.turnIndex = TURN_ORDER.indexOf("north");
-  render();
-}
-
-function endRound(message) {
-  if (!state.isRoundActive) {
-    return;
-  }
-  state.isRoundActive = false;
-  state.phase = "finished";
-  if (message) {
-    appendLog(message);
-  }
-  render();
-}
-
-function getNextTurnIndex(index) {
-  return (index + 1) % TURN_ORDER.length;
-}
-
-function updateControls() {
-  const drawButton = document.querySelector("#draw-tile");
-  if (drawButton) {
-    drawButton.disabled = !state.isRoundActive || state.phase !== "draw";
-  }
-  const startButton = document.querySelector("#start-round");
-  if (startButton) {
-    startButton.textContent = state.isRoundActive ? "局をリセット" : "配牌スタート";
+  switch (event.code) {
+    case "ArrowLeft":
+      event.preventDefault();
+      movePiece(-1);
+      break;
+    case "ArrowRight":
+      event.preventDefault();
+      movePiece(1);
+      break;
+    case "ArrowUp":
+      event.preventDefault();
+      rotatePiece();
+      break;
+    case "ArrowDown":
+      event.preventDefault();
+      softDrop();
+      break;
+    case "Space":
+    case "Spacebar":
+      event.preventDefault();
+      hardDrop();
+      break;
+    default:
+      break;
   }
 }
 
-function bindEvents() {
-  const startButton = document.querySelector("#start-round");
-  const drawButton = document.querySelector("#draw-tile");
-  if (startButton) {
-    startButton.addEventListener("click", () => {
-      startRound();
-    });
-  }
-  if (drawButton) {
-    drawButton.addEventListener("click", () => {
-      handleDraw();
-    });
-  }
-}
+restartButton.addEventListener("click", () => {
+  restartGame();
+  restartButton.blur();
+});
 
-function init() {
-  bindEvents();
-  render();
-  startRound();
-}
+window.addEventListener("keydown", handleKeyDown);
 
-document.addEventListener("DOMContentLoaded", init);
+update();
+restartGame();
