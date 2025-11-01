@@ -1,70 +1,57 @@
-# Mahjong Game
+# Browser Tetris
 
-A lightweight command-line simulator for a four-player Riichi Mahjong round.
-Four automated players draw and discard tiles according to a simple heuristic
-and the engine detects standard winning hands (four melds and a pair) as well as
-Thirteen Orphans.
+A lightweight HTML5 Tetris implementation built with vanilla JavaScript. The game
+runs entirely in the browser—no build step or external dependencies are
+required.
 
 ## Getting started
 
-The project has no runtime dependencies beyond Python 3.10+. To play a round use
-`python main.py`:
+Open `index.html` in a modern browser to start playing instantly. The canvas is
+resizable and adapts to the available space, making it easy to test changes
+without additional tooling.
+
+For local development convenience you can also serve the repository with any
+static file server, for example:
 
 ```bash
-python main.py
+npx http-server .
 ```
 
-Pass `--quiet` to suppress per-turn logs and `--seed` to reproduce a specific
-shuffle:
+## Controls
 
-```bash
-python main.py --seed 1234 --quiet
-```
-
-The script exits once a player wins or the wall is exhausted.
-
-## Browser prototype
-
-The repository also ships with a standalone HTML5版テトリス. Open `index.html`
-in a modern browser to start playing instantly. The implementation relies solely
-on HTML, CSS and vanilla JavaScript—no build step or external libraries.
-
-### 主な特徴
-
-- 10×20のプレイフィールドと7種類のテトリミノをサポート
-- 7バッグ方式でテトリミノをランダム生成
-- ソフトドロップ／ハードドロップ、回転、左右移動に対応
-- ライン消去でスコア加算、一定行数ごとにレベルアップ＆落下加速
-- 次のミノ表示、スコア・ライン・レベル表示、ゲームオーバー判定
-
-### 操作方法
-
-| キー | 動作 |
+| Key | Action |
 | --- | --- |
-| ← / → | 左右に1マス移動 |
-| ↑ | 右回転 |
-| ↓ | ソフトドロップ |
-| スペース | ハードドロップ |
-| R | ゲームをリスタート |
+| ← / → | Move piece left / right |
+| ↑ | Rotate clockwise |
+| ↓ | Soft drop |
+| Space | Hard drop |
+| R | Restart the game |
 
-行消去数に応じてスコアが加算され、10ラインごとにレベルが上がって落下速度が速くなります。
+## Features
 
-### テストの実行
+- 10×20 playfield with standard Tetromino shapes generated using the 7-bag
+  system.
+- Soft drop, hard drop, rotation kicks, and horizontal movement.
+- Line clear scoring with level progression that accelerates the drop speed.
+- Next piece preview, scoreboard, status messaging, and keyboard focus hints.
+- Responsive canvas rendering with crisp pixel art at any size.
 
-ブラウザ版テトリスのコアロジックは [Vitest](https://vitest.dev/) で単体テストを用意しています。
-ローカル環境では以下の手順で依存関係をインストールし、テストを実行できます。
+## Running tests
+
+The core gameplay logic is covered by unit tests using
+[Vitest](https://vitest.dev/). Install dependencies and run the test suite with:
 
 ```bash
 npm install
 npm test
 ```
 
-## Module overview
+## Project structure
 
-- `mahjong.tiles` – definitions for tiles and helpers to build/shuffle the wall.
-- `mahjong.player` – basic AI player that evaluates its hand and chooses discards.
-- `mahjong.game` – game loop, hand evaluator and helper dataclasses.
-- `main.py` – CLI for running a simulated round.
-
-Feel free to expand the AI, add scoring or build a graphical interface on top of
-the provided engine.
+- `main.js` – game loop, input handling, and UI orchestration.
+- `pieces.js` – Tetromino definitions and 7-bag generator.
+- `board.js` – board helpers for collision detection, line clears, and scoring.
+- `render.js` – canvas drawing routines and DOM updates.
+- `utils.js` – shared utilities for working with canvas dimensions.
+- `style.css` – layout and presentation for the browser UI.
+- `index.html` – standalone entry point that wires everything together.
