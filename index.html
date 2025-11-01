@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riichi Mahjong Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Riichi Mahjong Simulator</h1>
+    <p class="subtitle">軽量ブラウザ版 - 最低限の局進行をテストできます</p>
+  </header>
+
+  <main class="table" aria-live="polite">
+    <section class="table-info">
+      <div>山残り: <span id="wall-count">0</span></div>
+      <div>ドラ表示牌: <span id="dora-indicator">未設定</span></div>
+    </section>
+
+    <section class="players">
+      <div class="player player-top" data-player="south">
+        <h2>南家</h2>
+        <div class="hand" data-role="hand"></div>
+        <div class="river" data-role="river"></div>
+      </div>
+
+      <div class="player player-left" data-player="east">
+        <h2>東家 (CPU)</h2>
+        <div class="hand" data-role="hand"></div>
+        <div class="river" data-role="river"></div>
+      </div>
+
+      <div class="center-controls">
+        <button id="start-round" type="button">配牌スタート</button>
+        <button id="draw-tile" type="button" disabled>ツモ</button>
+        <p class="hint">※ 下段の自分の手牌をクリックすると捨てられます</p>
+      </div>
+
+      <div class="player player-right" data-player="west">
+        <h2>西家 (CPU)</h2>
+        <div class="hand" data-role="hand"></div>
+        <div class="river" data-role="river"></div>
+      </div>
+
+      <div class="player player-bottom" data-player="north">
+        <h2>北家 (あなた)</h2>
+        <div class="hand" data-role="hand" aria-label="あなたの手牌"></div>
+        <div class="river" data-role="river" aria-label="あなたの捨て牌"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <small>WIP: チー・ポン・カンや役判定は今後追加予定です。</small>
+  </footer>
+
+  <script src="main.js" type="module"></script>
+</body>
+</html>
