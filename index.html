@@ -27,9 +27,18 @@
           <h2>消去ライン</h2>
           <p id="lines" class="hud-value" aria-live="polite">0</p>
         </div>
+        <div class="hud-panel hud-panel--hold">
+          <h2>Hold</h2>
+          <canvas id="hold" width="120" height="120" aria-label="ホールド中のテトリミノ表示"></canvas>
+        </div>
         <div class="hud-panel hud-panel--next">
-          <h2>Next</h2>
-          <canvas id="next" width="120" height="120" aria-label="次のテトリミノ表示"></canvas>
+          <h2>Next ×5</h2>
+          <canvas
+            id="next"
+            width="140"
+            height="320"
+            aria-label="今後のテトリミノの順番を表示"
+          ></canvas>
         </div>
         <p id="status" class="status" data-status role="status" aria-live="polite">READY</p>
         <p id="sr-updates" class="sr-only" aria-live="polite"></p>
@@ -74,6 +83,10 @@
           <div>
             <dt>スペース</dt>
             <dd>ハードドロップ</dd>
+          </div>
+          <div>
+            <dt>C / Shift</dt>
+            <dd>ホールドと入れ替え</dd>
           </div>
           <div>
             <dt>R</dt>

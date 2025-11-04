@@ -21,10 +21,18 @@ vi.mock("./render.js", () => {
   });
 
   const updateNextPreview = vi.fn();
+  const updateHoldPreview = vi.fn();
   const drawBoard = vi.fn();
   const syncCanvasSizes = vi.fn();
 
-  return { drawBoard, syncCanvasSizes, updateNextPreview, updateScoreboard, updateStatus };
+  return {
+    drawBoard,
+    syncCanvasSizes,
+    updateNextPreview,
+    updateHoldPreview,
+    updateScoreboard,
+    updateStatus,
+  };
 });
 
 vi.mock("./pieces.js", () => {
@@ -126,6 +134,7 @@ describe("main game bootstrap", () => {
             <p id="lines"></p>
             <p id="sr-updates"></p>
             <button id="restart"></button>
+            <canvas id="hold"></canvas>
           </section>
           <section class="playfield">
             <canvas id="board" tabindex="0"></canvas>
@@ -138,6 +147,7 @@ describe("main game bootstrap", () => {
 
     const boardCanvas = document.querySelector("#board");
     const nextCanvas = document.querySelector("#next");
+    const holdCanvas = document.querySelector("#hold");
     const canvasContext = () => ({
       fillStyle: "",
       strokeStyle: "",
@@ -156,6 +166,7 @@ describe("main game bootstrap", () => {
       boardCanvas.dispatchEvent(new Event("blur"));
     });
     nextCanvas.getContext = vi.fn(canvasContext);
+    holdCanvas.getContext = vi.fn(canvasContext);
 
     global.requestAnimationFrame = vi.fn();
   });
@@ -166,6 +177,7 @@ describe("main game bootstrap", () => {
       drawBoard,
       syncCanvasSizes,
       updateNextPreview,
+      updateHoldPreview,
       updateScoreboard,
       updateStatus,
     } = render;
@@ -197,6 +209,13 @@ describe("main game bootstrap", () => {
     arrowEvent.preventDefault = vi.fn();
     boardCanvas.dispatchEvent(arrowEvent);
     expect(arrowEvent.preventDefault).toHaveBeenCalled();
+
+    const holdEvent = new KeyboardEvent("keydown", { code: "KeyC" });
+    holdEvent.preventDefault = vi.fn();
+    boardCanvas.dispatchEvent(holdEvent);
+    expect(holdEvent.preventDefault).toHaveBeenCalled();
+
+    expect(updateHoldPreview).toHaveBeenCalled();
 
     boardCanvas.dispatchEvent(new Event("blur"));
     expect(updateStatus).toHaveBeenLastCalledWith("キャンバスにフォーカスして操作できます", "paused");

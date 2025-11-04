@@ -4,7 +4,9 @@ import { resizeCanvasToDisplaySize } from "./utils.js";
 const BASE_BLOCK_SIZE = 32;
 const BASE_BOARD_WIDTH = 320;
 const BASE_BOARD_HEIGHT = 640;
-const BASE_NEXT_CANVAS_SIZE = 120;
+const BASE_NEXT_CANVAS_WIDTH = 140;
+const BASE_NEXT_CANVAS_HEIGHT = 320;
+const BASE_PREVIEW_CANVAS_SIZE = 120;
 const BASE_NEXT_CELL = 24;
 
 const boardCanvas = document.querySelector("#board");
@@ -14,6 +16,12 @@ boardCtx.imageSmoothingEnabled = false;
 const nextCanvas = document.querySelector("#next");
 const nextCtx = nextCanvas.getContext("2d");
 nextCtx.imageSmoothingEnabled = false;
+
+const holdCanvas = document.querySelector("#hold");
+const holdCtx = holdCanvas ? holdCanvas.getContext("2d") : null;
+if (holdCtx) {
+  holdCtx.imageSmoothingEnabled = false;
+}
 
 const scoreEl = document.querySelector("#score");
 const linesEl = document.querySelector("#lines");
@@ -52,7 +60,10 @@ export function syncCanvasSizes() {
   );
   boardBlockSize = BASE_BLOCK_SIZE * (boardMetrics.scale || 1);
 
-  resizeCanvasToDisplaySize(nextCanvas, BASE_NEXT_CANVAS_SIZE, BASE_NEXT_CANVAS_SIZE);
+  resizeCanvasToDisplaySize(nextCanvas, BASE_NEXT_CANVAS_WIDTH, BASE_NEXT_CANVAS_HEIGHT);
+  if (holdCanvas) {
+    resizeCanvasToDisplaySize(holdCanvas, BASE_PREVIEW_CANVAS_SIZE, BASE_PREVIEW_CANVAS_SIZE);
+  }
 }
 
 syncCanvasSizes();
@@ -169,25 +180,62 @@ export function drawBoard(
   }
 }
 
-export function updateNextPreview(nextPieceType) {
+export function updateNextPreview(queue) {
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-  if (!nextPieceType) return;
-  const matrix = SHAPES[nextPieceType][0];
-  const widthScale = nextCanvas.width / BASE_NEXT_CANVAS_SIZE;
+  if (!Array.isArray(queue) || queue.length === 0) return;
+
+  const widthScale = nextCanvas.width / BASE_NEXT_CANVAS_WIDTH;
+  const cellSize = Math.max(16, BASE_NEXT_CELL * widthScale);
+  const slotHeight = cellSize * 4;
+  const gap = Math.max(8, cellSize * 0.4);
+  const totalHeight = queue.length * slotHeight + (queue.length - 1) * gap;
+  let offsetY = Math.max((nextCanvas.height - totalHeight) / 2, 8);
+
+  for (const type of queue) {
+    const matrix = SHAPES[type]?.[0];
+    if (!matrix) continue;
+    const width = matrix[0].length * cellSize;
+    const height = matrix.length * cellSize;
+    const offsetX = (nextCanvas.width - width) / 2;
+    const slotOffsetY = offsetY + (slotHeight - height) / 2;
+    for (let row = 0; row < matrix.length; row += 1) {
+      for (let col = 0; col < matrix[row].length; col += 1) {
+        if (!matrix[row][col]) continue;
+        const x = offsetX + col * cellSize;
+        const y = slotOffsetY + row * cellSize;
+        nextCtx.fillStyle = COLORS[type];
+        nextCtx.fillRect(x, y, cellSize - 2, cellSize - 2);
+        nextCtx.strokeStyle = "rgba(15, 23, 42, 0.6)";
+        nextCtx.strokeRect(x + 1, y + 1, cellSize - 4, cellSize - 4);
+      }
+    }
+    offsetY += slotHeight + gap;
+  }
+}
+
+export function updateHoldPreview(type) {
+  if (!holdCtx || !holdCanvas) return;
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  if (!type) return;
+
+  const matrix = SHAPES[type]?.[0];
+  if (!matrix) return;
+  const widthScale = holdCanvas.width / BASE_PREVIEW_CANVAS_SIZE;
   const cellSize = Math.max(16, BASE_NEXT_CELL * widthScale);
   const width = matrix[0].length * cellSize;
   const height = matrix.length * cellSize;
-  const offsetX = (nextCanvas.width - width) / 2;
-  const offsetY = (nextCanvas.height - height) / 2;
+  const offsetX = (holdCanvas.width - width) / 2;
+  const offsetY = (holdCanvas.height - height) / 2;
+
   for (let row = 0; row < matrix.length; row += 1) {
     for (let col = 0; col < matrix[row].length; col += 1) {
       if (!matrix[row][col]) continue;
       const x = offsetX + col * cellSize;
       const y = offsetY + row * cellSize;
-      nextCtx.fillStyle = COLORS[nextPieceType];
-      nextCtx.fillRect(x, y, cellSize - 2, cellSize - 2);
-      nextCtx.strokeStyle = "rgba(15, 23, 42, 0.6)";
-      nextCtx.strokeRect(x + 1, y + 1, cellSize - 4, cellSize - 4);
+      holdCtx.fillStyle = COLORS[type];
+      holdCtx.fillRect(x, y, cellSize - 2, cellSize - 2);
+      holdCtx.strokeStyle = "rgba(15, 23, 42, 0.6)";
+      holdCtx.strokeRect(x + 1, y + 1, cellSize - 4, cellSize - 4);
     }
   }
 }
