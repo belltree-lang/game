@@ -86,15 +86,19 @@ body {
   font-weight: 600;
 }
 
-.hud-panel--next {
+.hud-panel--next,
+.hud-panel--hold {
   align-items: center;
 }
 
-#next {
+.hud-panel canvas {
   margin-top: 8px;
+  width: 100%;
+  height: auto;
   background: #0f172a;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: inset 0 0 12px rgba(148, 163, 184, 0.25);
 }
 
 .status {

@@ -12,6 +12,7 @@ import {
   drawBoard,
   syncCanvasSizes,
   updateNextPreview,
+  updateHoldPreview,
   updateScoreboard,
   updateStatus,
 } from "./render.js";
@@ -19,6 +20,7 @@ import {
 const COLS = 10;
 const ROWS = 20;
 const LINE_CLEAR_ANIMATION_DURATION = 260;
+const NEXT_QUEUE_SIZE = 5;
 const NORMAL_KICKS = [
   { col: 0, row: 0 },
   { col: 1, row: 0 },
@@ -45,7 +47,9 @@ const focusBoardButton = document.querySelector("#focus-board");
 let board = createMatrix(ROWS, COLS);
 let bag = new Bag();
 let currentPiece = null;
-let nextPieceType = null;
+let nextQueue = [];
+let holdPieceType = null;
+let hasHeldThisTurn = false;
 let score = 0;
 let totalLines = 0;
 let level = 1;
@@ -69,8 +73,23 @@ function currentMatrix() {
   return rotations[currentPiece.rotationIndex];
 }
 
-function spawnPiece() {
-  const type = nextPieceType ?? bag.draw();
+function drawNextType() {
+  if (nextQueue.length === 0) {
+    refillNextQueue();
+  }
+  const nextType = nextQueue.shift();
+  refillNextQueue();
+  return nextType;
+}
+
+function refillNextQueue() {
+  while (nextQueue.length < NEXT_QUEUE_SIZE) {
+    nextQueue.push(bag.draw());
+  }
+}
+
+function spawnPiece(typeOverride = null, { resetHoldUsage = true } = {}) {
+  const type = typeOverride ?? drawNextType();
   const initialRow = type === "I" ? -1 : -2;
   const piece = {
     type,
@@ -84,12 +103,16 @@ function spawnPiece() {
     if (!canPlace(board, matrix, piece.row, piece.col)) {
       currentPiece = null;
       gameOver();
+      updateNextPreview(nextQueue);
       return;
     }
   }
   currentPiece = piece;
-  nextPieceType = bag.draw();
-  updateNextPreview(nextPieceType);
+  dropCounter = 0;
+  if (resetHoldUsage) {
+    hasHeldThisTurn = false;
+  }
+  updateNextPreview(nextQueue);
 }
 
 function rotatePiece() {
@@ -201,7 +224,10 @@ function restartGame() {
   resetBoard();
   bag = new Bag();
   currentPiece = null;
-  nextPieceType = bag.draw();
+  nextQueue = [];
+  holdPieceType = null;
+  hasHeldThisTurn = false;
+  refillNextQueue();
   score = 0;
   totalLines = 0;
   level = 1;
@@ -211,7 +237,8 @@ function restartGame() {
   isRunning = true;
   isGameOver = false;
   updateScoreboard(score, totalLines, level);
-  updateNextPreview(nextPieceType);
+  updateHoldPreview(null);
+  updateNextPreview(nextQueue);
   spawnPiece();
   showFocusPrompt();
 }
@@ -253,6 +280,12 @@ function handleKeyDown(event) {
     case "ArrowDown":
       event.preventDefault();
       softDrop();
+      break;
+    case "ShiftLeft":
+    case "ShiftRight":
+    case "KeyC":
+      event.preventDefault();
+      holdCurrentPiece();
       break;
     case "Space":
     case "Spacebar":
@@ -303,7 +336,8 @@ window.addEventListener("keydown", (event) => {
 
 function handleResize() {
   syncCanvasSizes();
-  updateNextPreview(nextPieceType);
+  updateNextPreview(nextQueue);
+  updateHoldPreview(holdPieceType);
 }
 
 window.addEventListener("resize", handleResize);
@@ -338,4 +372,20 @@ function getGhostPiece(matrix = currentMatrix()) {
     ghost.row += 1;
   }
   return ghost;
+}
+
+function holdCurrentPiece() {
+  if (!currentPiece || clearingState || hasHeldThisTurn) {
+    return;
+  }
+  const currentType = currentPiece.type;
+  const nextType = holdPieceType;
+  holdPieceType = currentType;
+  updateHoldPreview(holdPieceType);
+  if (nextType) {
+    spawnPiece(nextType, { resetHoldUsage: false });
+  } else {
+    spawnPiece(null, { resetHoldUsage: false });
+  }
+  hasHeldThisTurn = true;
 }
